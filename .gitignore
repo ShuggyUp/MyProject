@@ -1,3 +1,5 @@
 .idea
 code/test.py
-code/users_data.txt
+code/telegram_bot_token.txt
+code/users_data.db
+git_token.txt
