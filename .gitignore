@@ -2,4 +2,5 @@
 code/test.py
 code/telegram_bot_token.txt
 code/users_data.db
+code/first_version_parser.py
 git_token.txt
