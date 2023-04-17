@@ -4,6 +4,9 @@ import pandas as pd
 import re
 import json
 
+import DB_functions as dbf
+import Telegram
+
 
 text_for_search_list = ['junior developer', 'middle developer', 'senior developer']
 experience_param_list = ['noExperience', 'between1And3', 'between3And6', 'moreThan6']
@@ -42,7 +45,7 @@ def processing_vacancies_data(text_for_search, experience_param):
     return df_vacancies_data
 
 
-def parse_vacancies_info(text_for_search, experience_param, page=0):
+def parse_vacancies_info(text_for_search, experience_param=None, page=0):
     api_params = {
         'text': text_for_search,
         'area': '113',
@@ -109,6 +112,24 @@ def data_to_correct_form_for_dataframe(vacancy_info, grade):
                     work_experience_from, work_experience_to, employment, schedule, published_at, key_skills,
                     key_skills_count, grade]
     return correct_form
+
+
+def send_new_vacancies_to_telegram():
+    users_data = dbf.read_users_data_from_db()
+
+    # проблема парсинга нужной инфы. если использовать фильтры по грейду, то нужно делать разные запросы парсера
+    # либо переписаь, либо не использовать фильтры по грейду
+    vacancies_info = json.loads(parse_vacancies_info(text_for_search, experience_param, page))
+    for one_vacancy_info in vacancies_info['items']:
+        for chat_id, user_filters in users_data:
+            if vacancy_matches_filters(one_vacancy_info, user_filters):
+                correct_form_of_data = data_to_correct_form_for_message(one_vacancy_info)
+                Telegram.send_vacancy_message(chat_id, correct_form_of_data)
+
+
+def vacancy_matches_filters(one_vacancy_info, user_filters):
+    # сравнивать значения фильтров и их соответствия из json
+    return True
 
 
 def data_to_correct_form_for_message(vacancy_info):
