@@ -8,7 +8,9 @@ import DB_functions as dbf
 # @connect_to_bot.message_handler() без параметров принимает любой текст
 
 
-all_filters = ['junior', 'middle', 'senior']
+all_filters = ['Junior', 'Middle', 'Senior', 'Нет опыта', 'От 3 до 6 лет', 'От 1 года до 3 лет', 'Более 6 лет',
+               'Полная занятость', 'Стажировка', 'Проектная работа', 'Частичная занятость', 'Новосибирск', 'Москва',
+               'Санкт-Петербург', 'Барнаул']
 with open('telegram_bot_token.txt', 'r') as file:
     connect_to_bot = telebot.TeleBot(file.readline())
 
@@ -32,8 +34,7 @@ def output_all_command(chat_data):
 @connect_to_bot.message_handler(commands=['setfilter'])
 def set_filter(chat_data):
     button_creator = types.InlineKeyboardMarkup()
-    user_db_filters = dbf.read_user_filter_from_db(chat_data.chat.id)
-    user_db_filters_list = user_db_filters.split()
+    user_db_filters_list = dbf.read_user_filter_from_db(chat_data.chat.id)
 
     available_filters = list(set(all_filters).difference(set(user_db_filters_list)))
     for filter in available_filters:
@@ -66,8 +67,7 @@ def add_filter_param(callback_chat_data):
 @connect_to_bot.message_handler(commands=['delfilter'])
 def delete_filter(chat_data):
     button_creator = types.InlineKeyboardMarkup()
-    user_db_filters = dbf.read_user_filter_from_db(chat_data.chat.id)
-    user_db_filters_list = user_db_filters.split()
+    user_db_filters_list = dbf.read_user_filter_from_db(chat_data.chat.id)
 
     for item in user_db_filters_list:
         button_creator.add(types.InlineKeyboardButton(item.capitalize(), callback_data=f'del_filter_{item}'))
@@ -99,10 +99,10 @@ def exit_filter_menu(callback_chat_data):
 
 @connect_to_bot.message_handler(commands=['showfilter'])
 def show_filter(chat_data):
-    user_db_filters = dbf.read_user_filter_from_db(chat_data.chat.id)
-    if len(user_db_filters) != 0:
-        user_db_filters = user_db_filters.replace(' ', ', ')
-        connect_to_bot.send_message(chat_data.chat.id, f'Ваши фильтры: {user_db_filters}')
+    user_db_filters_list = dbf.read_user_filter_from_db(chat_data.chat.id)
+    if len(user_db_filters_list) != 0:
+        user_db_filters_str = ', '.join(user_db_filters_list)
+        connect_to_bot.send_message(chat_data.chat.id, f'Ваши фильтры: {user_db_filters_str}')
     else:
         connect_to_bot.send_message(chat_data.chat.id, 'У вас не установлено ни одного фильтра!')
 

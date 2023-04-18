@@ -8,7 +8,7 @@ import DB_functions as dbf
 import Telegram
 
 
-text_for_search_list = ['junior developer', 'middle developer', 'senior developer']
+text_for_search_list = ['Junior developer', 'Middle developer', 'Senior developer']
 experience_param_list = ['noExperience', 'between1And3', 'between3And6', 'moreThan6']
 columns_name = ['company name', 'city', 'vacancy name', 'salary from', 'salary to', 'salary currency', 'salary gross',
                 'work experience from', 'work experience to', 'employment', 'schedule', 'published at', 'key skills',
@@ -19,6 +19,8 @@ user_headers = {
         'Accept': '*/*',
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/111.0'
 }
+
+lust_vacancies = {'Junior': '', 'Middle': '', 'Senior': ''}
 
 
 def save_hh_vacancies_on_csv():
@@ -45,12 +47,12 @@ def processing_vacancies_data(text_for_search, experience_param):
     return df_vacancies_data
 
 
-def parse_vacancies_info(text_for_search, experience_param=None, page=0):
+def parse_vacancies_info(text_for_search, experience_param=None, page=0, num_per_page=100):
     api_params = {
         'text': text_for_search,
         'area': '113',
         'page': page,
-        'per_page': 100,
+        'per_page': num_per_page,
         'experience': experience_param,
         'professional_role': ['156', '160', '10', '12', '150', '25', '165', '34', '36', '73', '155', '96', '164',
                               '104', '157', '107', '112', '113', '148', '114', '116', '121', '124', '125', '126'],
@@ -114,26 +116,71 @@ def data_to_correct_form_for_dataframe(vacancy_info, grade):
     return correct_form
 
 
-def send_new_vacancies_to_telegram():
+def check_and_parse_new_vacancies():
+    new_vacancies_list = []
+    for text_for_search in text_for_search_list:
+        vacancies_info = json.loads(parse_vacancies_info(text_for_search, num_per_page=10))
+
+        grade = text_for_search.split()[0]
+        new_value_lust_vacancy = None
+        for one_vacancy_info in vacancies_info['items']:
+            if one_vacancy_info['id'] != lust_vacancies[grade]:
+                one_vacancy_info['grade'] = grade
+                new_vacancies_list.append(one_vacancy_info)
+            else:
+                break
+
+            if new_value_lust_vacancy is None:
+                new_value_lust_vacancy = one_vacancy_info['id']
+
+        if new_value_lust_vacancy is not None:
+            lust_vacancies[grade] = new_value_lust_vacancy
+
+    send_new_vacancies_to_telegram(new_vacancies_list)
+
+
+def send_new_vacancies_to_telegram(new_vacancies_list):
     users_data = dbf.read_users_data_from_db()
 
-    # проблема парсинга нужной инфы. если использовать фильтры по грейду, то нужно делать разные запросы парсера
-    # либо переписаь, либо не использовать фильтры по грейду
-    vacancies_info = json.loads(parse_vacancies_info(text_for_search, experience_param, page))
-    for one_vacancy_info in vacancies_info['items']:
+    for one_vacancy_info in new_vacancies_list:
         for chat_id, user_filters in users_data:
             if vacancy_matches_filters(one_vacancy_info, user_filters):
                 correct_form_of_data = data_to_correct_form_for_message(one_vacancy_info)
                 Telegram.send_vacancy_message(chat_id, correct_form_of_data)
 
 
-def vacancy_matches_filters(one_vacancy_info, user_filters):
-    # сравнивать значения фильтров и их соответствия из json
+def vacancy_matches_filters(vacancy_info, user_filters):
+    all_grades = ['Junior', 'Middle', 'Senior']
+    all_experience = ['Нет опыта', 'От 3 до 6 лет', 'От 1 года до 3 лет', 'Более 6 лет']
+    all_employment = ['Полная занятость', 'Стажировка', 'Проектная работа', 'Частичная занятость']
+    all_cities = ['Новосибирск', 'Москва', 'Санкт-Петербург', 'Барнаул']
+
+    user_filters_list = user_filters.split(', ')
+    if len(user_filters_list) == 0:
+        return True
+
+    if not(vacancy_info['grade'] in user_filters_list or
+           all(elem not in user_filters_list for elem in all_grades)):
+        return False
+
+    if not (vacancy_info['experience']['name'] in user_filters_list or
+            all(elem not in user_filters_list for elem in all_experience)):
+        return False
+
+    if not (vacancy_info['employment']['name'] in user_filters_list or
+            all(elem not in user_filters_list for elem in all_employment)):
+        return False
+
+    if not (vacancy_info['area']['name'] in user_filters_list or
+            all(elem not in user_filters_list for elem in all_cities)):
+        return False
+
     return True
 
 
 def data_to_correct_form_for_message(vacancy_info):
     vacancy_name = vacancy_info['name']
+    grade = vacancy_info['grade']
 
     if vacancy_info['salary'] is None:
         salary_str = 'не указана'
@@ -152,6 +199,7 @@ def data_to_correct_form_for_message(vacancy_info):
     vacancy_url = vacancy_info['alternate_url']
 
     message_to_user = f'<b>{vacancy_name}</b>\n\n' \
+                      f'Уровень: {grade}\n' \
                       f'Зарплата: {salary_str}\n' \
                       f'Компания: {company_name}\n' \
                       f'Город: {city}\n' \
@@ -161,6 +209,3 @@ def data_to_correct_form_for_message(vacancy_info):
                       f'Обязанности: {responsibility}\n\n' \
                       f'Подробнее о вакансии: {vacancy_url}'
     return message_to_user
-
-
-save_hh_vacancies_on_csv()
